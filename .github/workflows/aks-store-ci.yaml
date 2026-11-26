@@ -1,0 +1,75 @@
+# CI: 앱 이미지를 빌드해 ACR에 푸시하고, deploy/demo의 이미지 태그를 바꿔 커밋한다.
+# CD는 Argo CD가 맡는다 (이 커밋을 보고 클러스터에 반영). 그래서 이 워크플로는 AKS에 접근하지 않는다.
+#
+# 필요한 GitHub 설정 (Settings → Secrets and variables → Actions)
+#   Secrets  : AZURE_CLIENT_ID, AZURE_TENANT_ID (30-shared output github_ci), AZURE_SUBSCRIPTION_ID
+#   Variables: ACR_NAME = acrdemohubgwlee
+name: aks-store-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/order-service/**"
+      - "src/product-service/**"
+      - "src/store-front/**"
+      - ".github/workflows/aks-store-ci.yaml"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # Azure OIDC 로그인 (비밀번호 없음)
+  contents: write # deploy/demo/kustomization.yaml 커밋
+
+env:
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [order-service, product-service, store-front]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR 로그인
+        run: az acr login --name "$ACR_NAME"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 빌드·푸시
+        uses: docker/build-push-action@v6
+        with:
+          context: src/${{ matrix.service }}
+          push: true
+          tags: ${{ env.ACR_NAME }}.azurecr.io/aks-store-demo/${{ matrix.service }}:${{ env.IMAGE_TAG }}
+
+  update-manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 이미지 태그 변경 (kustomize는 ubuntu-latest 러너에 기본 설치)
+        working-directory: deploy/demo
+        run: |
+          for svc in order-service product-service store-front; do
+            kustomize edit set image \
+              "ghcr.io/azure-samples/aks-store-demo/${svc}=${ACR_NAME}.azurecr.io/aks-store-demo/${svc}:${IMAGE_TAG}"
+          done
+          cat kustomization.yaml
+
+      - name: 커밋·푸시 → Argo CD가 감지해 배포
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deploy/demo/kustomization.yaml
+          git commit -m "deploy(demo): aks-store ${IMAGE_TAG::7} [skip ci]" || { echo "변경 없음"; exit 0; }
+          git push
