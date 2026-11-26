@@ -6,24 +6,24 @@ kind: Kustomization
 namespace: aks-store
 
 resources:
-  - aks-store-quickstart.yaml # Azure-Samples/aks-store-demo 원본 (v2.2.0)
+- aks-store-quickstart.yaml
 
 patches:
-  - path: store-front-internal-lb.yaml
+- path: store-front-internal-lb.yaml
 
 # 모든 이미지를 우리 ACR에서 받는다 (Firewall은 ACR만 허용, §3-3)
 # 앱 3개의 newTag는 CI(GitHub Actions)가 커밋 SHA로 바꿔 커밋한다
 images:
-  - name: rabbitmq
-    newName: acrdemohubgwlee.azurecr.io/library/rabbitmq
-  - name: busybox
-    newName: acrdemohubgwlee.azurecr.io/library/busybox
-  - name: ghcr.io/azure-samples/aks-store-demo/order-service
-    newName: acrdemohubgwlee.azurecr.io/aks-store-demo/order-service
-    newTag: "2.2.0"
-  - name: ghcr.io/azure-samples/aks-store-demo/product-service
-    newName: acrdemohubgwlee.azurecr.io/aks-store-demo/product-service
-    newTag: "2.2.0"
-  - name: ghcr.io/azure-samples/aks-store-demo/store-front
-    newName: acrdemohubgwlee.azurecr.io/aks-store-demo/store-front
-    newTag: "2.2.0"
+- name: busybox
+  newName: acrdemohubgwlee.azurecr.io/library/busybox
+- name: ghcr.io/azure-samples/aks-store-demo/order-service
+  newName: acrdemohubgwlee.azurecr.io/aks-store-demo/order-service
+  newTag: 5b5a15c0159f17f5c12880bbf3c425508aabe550
+- name: ghcr.io/azure-samples/aks-store-demo/product-service
+  newName: acrdemohubgwlee.azurecr.io/aks-store-demo/product-service
+  newTag: 5b5a15c0159f17f5c12880bbf3c425508aabe550
+- name: ghcr.io/azure-samples/aks-store-demo/store-front
+  newName: acrdemohubgwlee.azurecr.io/aks-store-demo/store-front
+  newTag: 5b5a15c0159f17f5c12880bbf3c425508aabe550
+- name: rabbitmq
+  newName: acrdemohubgwlee.azurecr.io/library/rabbitmq
